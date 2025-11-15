@@ -11,6 +11,8 @@ import {
   Settings,
   Lightbulb,
 } from "lucide-react";
+const API_URL = "http://localhost:5000";
+
 
 export default function App() {
   const mapRef = useRef(null);
@@ -183,6 +185,19 @@ export default function App() {
 
   // ✅ Handle Navigation (OSRM keyless routing)
   const handleNavigate = async () => {
+      const token = localStorage.getItem("token");
+
+      await fetch("http://localhost:5000/history/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          source,
+          destination,
+        }),
+      });
     if (!source || !destination) return;
     try {
       const src = await geocode(source);
@@ -407,6 +422,6 @@ export default function App() {
           </p>
         </div>
       </div>
-    </div>
+      </div>
   );
 }
