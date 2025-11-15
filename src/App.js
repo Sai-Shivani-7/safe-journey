@@ -260,6 +260,35 @@ export default function App() {
 
     return routes;
   };
+  const saveHistory = async (src, dest) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    console.error("No token found");
+    return;
+  }
+
+  try {
+    const res = await fetch("http://localhost:5000/history/add", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
+      },
+      body: JSON.stringify({
+        source: src,
+        destination: dest
+      })
+    });
+
+    const data = await res.json();
+    console.log("History save result:", data);
+
+  } catch (err) {
+    console.error("History save error:", err);
+  }
+};
+
 
   // Handle navigation
   const handleNavigate = async () => {
@@ -323,6 +352,8 @@ export default function App() {
       fetchWeather(dest.lat, dest.lon);
       fetchCrimes(dest.lat, dest.lon);
       fetchStreetLights(dest.lat, dest.lon);
+      await saveHistory(source, destination);
+
     } catch (e) {
       alert("Error finding routes: " + e.message);
       console.error(e);
