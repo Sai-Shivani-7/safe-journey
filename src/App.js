@@ -24,7 +24,6 @@ export default function App() {
   const [eta, setEta] = useState(null); // still keep ETA state for map marker info
   const etaMarkerRef = useRef(null); // keep track of ETA marker on map
 
-  // ✅ Initialize map
   useEffect(() => {
     if (!mapRef.current) return;
     const initMap = L.map(mapRef.current).setView([17.385, 78.4867], 13);
@@ -36,7 +35,6 @@ export default function App() {
     setMap(initMap);
   }, []);
 
-  // ✅ Geocode using Nominatim (Free & Global)
   const geocode = async (address) => {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
@@ -52,7 +50,6 @@ export default function App() {
     };
   };
 
-  // ✅ Fetch Weather from Open-Meteo (Free)
   const fetchWeather = async (lat, lon) => {
     try {
       const res = await fetch(
@@ -69,8 +66,6 @@ export default function App() {
     }
   };
 
-  // ✅ Fetch safety/crime info (Safetipin or fallback)
-  // ✅ Fetch safety POIs from OpenStreetMap (always works)
   const fetchCrimes = async (lat, lon) => {
     const query = `
     [out:json];
@@ -130,7 +125,6 @@ export default function App() {
     }
   };
 
-  // ✅ Fetch streetlight data from Overpass (OpenStreetMap)
   const fetchStreetLights = async (lat, lon) => {
     const query = `
       [out:json];
@@ -182,7 +176,6 @@ export default function App() {
     }
   };
 
-  // ✅ Handle Navigation (OSRM keyless routing)
   const handleNavigate = async () => {
       const token = localStorage.getItem("token");
 
