@@ -268,9 +268,7 @@ export default function App() {
       if (coords.length > 0 && map) {
         // remove previous
         if (etaMarkerRef.current) {
-          try {
-            map.removeLayer(etaMarkerRef.current);
-          } catch (e) {}
+          try { map.removeLayer(etaMarkerRef.current); } catch (e) {}
           etaMarkerRef.current = null;
         }
 
@@ -295,7 +293,7 @@ export default function App() {
         const marker = L.marker(midPoint, { icon, interactive: false }).addTo(map);
         etaMarkerRef.current = marker;
 
-        // also bind a popup to destination marker with details
+        // keep popup on destination too
         destMarker.bindPopup(`
           <div style='min-width:160px'>
             <strong>ETA</strong><br/>
@@ -305,6 +303,7 @@ export default function App() {
           </div>
         `);
       }
+
 
       // Fetch all extra data
       fetchWeather(dest.lat, dest.lon);
