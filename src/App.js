@@ -11,10 +11,14 @@ import {
   Settings,
   Lightbulb,
 } from "lucide-react";
+import Login from "./Login"; // assuming your Login component is in same folder
 
 export default function App() {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
+  const [loggedIn, setLoggedIn] = useState(
+    !!localStorage.getItem("token")
+  );
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
   const [weather, setWeather] = useState(null);
@@ -25,7 +29,13 @@ export default function App() {
 
   // Initialize map
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!loggedIn || !mapRef.current) return;
+
+    // Remove previous map if exists
+    if (map) {
+      map.remove();
+    }
+
     const initMap = L.map(mapRef.current).setView([17.385, 78.4867], 13);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -33,9 +43,19 @@ export default function App() {
     }).addTo(initMap);
 
     setMap(initMap);
-  }, []);
+  }, [loggedIn]); // Re-run on login
 
-  // Geocode address
+  // Logout logic
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setLoggedIn(false);
+    setRoutes([]);
+    setWeather(null);
+    setCrimeData([]);
+    setLights([]);
+  };
+
+  // Geocode
   const geocode = async (address) => {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
@@ -60,7 +80,8 @@ export default function App() {
       const data = await res.json();
       setWeather({
         temp: Math.round(data.current_weather.temperature),
-        condition: data.current_weather.weathercode === 0 ? "Clear" : "Cloudy",
+        condition:
+          data.current_weather.weathercode === 0 ? "Clear" : "Cloudy",
       });
     } catch (e) {
       console.error("Weather error:", e);
@@ -88,10 +109,10 @@ export default function App() {
       `;
 
       try {
-        const res = await fetch("https://overpass-api.de/api/interpreter", {
-          method: "POST",
-          body: query,
-        });
+        const res = await fetch(
+          "https://overpass-api.de/api/interpreter",
+          { method: "POST", body: query }
+        );
         const data = await res.json();
         totalSafetyScore += data.elements.length;
       } catch (e) {
@@ -102,7 +123,7 @@ export default function App() {
     return totalSafetyScore;
   };
 
-  // Fetch safety POIs
+  // Fetch safety points
   const fetchCrimes = async (lat, lon) => {
     const query = `
       [out:json];
@@ -115,12 +136,11 @@ export default function App() {
       );
       out center;
     `;
-
     try {
-      const res = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        body: query,
-      });
+      const res = await fetch(
+        "https://overpass-api.de/api/interpreter",
+        { method: "POST", body: query }
+      );
       const data = await res.json();
       if (!data.elements || data.elements.length === 0) {
         setCrimeData([]);
@@ -135,7 +155,6 @@ export default function App() {
         const φ2 = el.lat * (Math.PI / 180);
         const Δφ = (el.lat - lat) * (Math.PI / 180);
         const Δλ = (el.lon - lon) * (Math.PI / 180);
-
         const a =
           Math.sin(Δφ / 2) ** 2 +
           Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
@@ -164,10 +183,10 @@ export default function App() {
       out;
     `;
     try {
-      const res = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        body: query,
-      });
+      const res = await fetch(
+        "https://overpass-api.de/api/interpreter",
+        { method: "POST", body: query }
+      );
       const data = await res.json();
       const lights = data.elements.map((el) => ({
         lat: el.lat,
@@ -203,7 +222,6 @@ export default function App() {
       routes.push(directData.routes[0]);
     }
 
-    // Offset waypoints for alternative routes
     const latDiff = dest.lat - src.lat;
     const lonDiff = dest.lon - src.lon;
 
@@ -222,9 +240,8 @@ export default function App() {
         `https://router.project-osrm.org/route/v1/driving/${src.lon},${src.lat};${waypoint1.lon},${waypoint1.lat};${dest.lon},${dest.lat}?overview=full&geometries=geojson`
       );
       const route2Data = await route2.json();
-      if (route2Data.code === "Ok" && route2Data.routes.length > 0) {
+      if (route2Data.code === "Ok" && route2Data.routes.length > 0)
         routes.push(route2Data.routes[0]);
-      }
     } catch (e) {
       console.error("Route 2 error:", e);
     }
@@ -235,9 +252,8 @@ export default function App() {
         `https://router.project-osrm.org/route/v1/driving/${src.lon},${src.lat};${waypoint2.lon},${waypoint2.lat};${dest.lon},${dest.lat}?overview=full&geometries=geojson`
       );
       const route3Data = await route3.json();
-      if (route3Data.code === "Ok" && route3Data.routes.length > 0) {
+      if (route3Data.code === "Ok" && route3Data.routes.length > 0)
         routes.push(route3Data.routes[0]);
-      }
     } catch (e) {
       console.error("Route 3 error:", e);
     }
@@ -253,7 +269,7 @@ export default function App() {
       const src = await geocode(source);
       const dest = await geocode(destination);
 
-      // Clear layers except tile layer
+      // Clear map except tile layer
       map.eachLayer((layer) => {
         if (layer instanceof L.TileLayer) return;
         map.removeLayer(layer);
@@ -261,7 +277,6 @@ export default function App() {
 
       const srcMarker = L.marker([src.lat, src.lon]).addTo(map);
       const destMarker = L.marker([dest.lat, dest.lon]).addTo(map);
-
       srcMarker.bindPopup(`<b>Source:</b><br>${src.displayName}`).openPopup();
       destMarker.bindPopup(`<b>Destination:</b><br>${dest.displayName}`);
 
@@ -275,11 +290,9 @@ export default function App() {
         const safetyScore = await calculateRouteSafety(coords);
         const distance = (routeData[i].distance / 1000).toFixed(2);
         const duration = Math.round(routeData[i].duration / 60);
-
         routesWithSafety.push({ coords, safetyScore, distance, duration });
       }
 
-      // Determine safest route
       const safestIdx = routesWithSafety.reduce(
         (maxIdx, route, idx, arr) =>
           route.safetyScore > arr[maxIdx].safetyScore ? idx : maxIdx,
@@ -290,7 +303,6 @@ export default function App() {
       setRoutes(routesWithSafety);
 
       const routeColors = ["#3b82f6", "#8b5cf6", "#ef4444"];
-
       routesWithSafety.forEach((route, idx) => {
         const isSafest = idx === safestIdx;
         L.polyline(route.coords, {
@@ -308,7 +320,6 @@ export default function App() {
       });
 
       map.fitBounds(L.polyline(routesWithSafety[0].coords).getBounds());
-
       fetchWeather(dest.lat, dest.lon);
       fetchCrimes(dest.lat, dest.lon);
       fetchStreetLights(dest.lat, dest.lon);
@@ -318,13 +329,26 @@ export default function App() {
     }
   };
 
+  // Render
+  if (!loggedIn) {
+    return <Login onLogin={() => setLoggedIn(true)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       <header className="flex items-center justify-between p-4 bg-gray-800 shadow-lg">
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <Shield size={24} /> Safe Journey Navigator
         </h1>
-        <Settings size={20} className="cursor-pointer" />
+        <div className="flex gap-4 items-center">
+          <Settings size={20} className="cursor-pointer" />
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 px-3 py-1 rounded hover:bg-red-700 text-sm"
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-col md:flex-row items-center gap-4 p-4 bg-gray-800">
@@ -360,6 +384,7 @@ export default function App() {
 
       <div
         ref={mapRef}
+        key={loggedIn} // important to re-render div
         id="map"
         className="flex-1 w-full"
         style={{ minHeight: "450px" }}
@@ -425,9 +450,7 @@ export default function App() {
           <h2 className="flex items-center gap-2 text-lg font-semibold mb-2">
             <Lightbulb /> Street Lighting
           </h2>
-          <p>
-            {lights.length > 0 ? `💡 ${lights.length} lights found` : "No data available"}
-          </p>
+          <p>{lights.length > 0 ? `💡 ${lights.length} lights found` : "No data available"}</p>
         </div>
       </div>
     </div>
