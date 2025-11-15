@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 const API_URL = "http://localhost:5000";
 
-
 export default function App() {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
@@ -22,7 +21,7 @@ export default function App() {
   const [weather, setWeather] = useState(null);
   const [crimeData, setCrimeData] = useState([]);
   const [lights, setLights] = useState([]);
-  const [eta, setEta] = useState(null); // new
+  const [eta, setEta] = useState(null); // still keep ETA state for map marker info
   const etaMarkerRef = useRef(null); // keep track of ETA marker on map
 
   // ✅ Initialize map
@@ -357,20 +356,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* Floating ETA panel (fixed) */}
-      {eta && (
-        <div className="fixed right-4 top-24 z-50 w-64 bg-gray-800 bg-opacity-95 p-3 rounded-xl shadow-2xl border border-gray-700">
-          <h3 className="font-semibold text-lg flex items-center gap-2">ETA</h3>
-          <p className="text-sm mt-1">Distance: {eta.distanceKm} km</p>
-          <p className="text-sm">Estimated time: {eta.lowerMinutes} - {eta.upperMinutes} min</p>
-          <p className="text-sm mt-1">
-            Arrival: {eta.arrivalLower.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} - {eta.arrivalUpper.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-          </p>
-          {eta.osrmDurationSec && (
-            <p className="text-xs mt-1 text-gray-300">OSRM duration: {Math.round(eta.osrmDurationSec/60)} min</p>
-          )}
-        </div>
-      )}
+      {/* NOTE: Fixed/floating ETA panel removed — ETA is shown as a floating DivIcon on the map only */}
 
       {/* Map */}
       <div
@@ -421,6 +407,6 @@ export default function App() {
           </p>
         </div>
       </div>
-      </div>
+    </div>
   );
 }
