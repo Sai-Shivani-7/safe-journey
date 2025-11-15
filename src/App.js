@@ -320,7 +320,7 @@ export default function App() {
       {/* Header */}
       <header className="flex items-center justify-between p-4 bg-gray-800 shadow-lg">
         <h1 className="text-2xl font-semibold flex items-center gap-2">
-          <Shield size={24} /> Safe Journey (Free APIs)
+          <Shield size={24} /> Safe Journey
         </h1>
         <Settings size={20} className="cursor-pointer" />
       </header>
