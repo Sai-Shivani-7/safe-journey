@@ -1,3 +1,4 @@
+// App.js
 import React, { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -16,9 +17,7 @@ import Login from "./Login"; // assuming your Login component is in same folder
 export default function App() {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
-  const [loggedIn, setLoggedIn] = useState(
-    !!localStorage.getItem("token")
-  );
+  const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem("token"));
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
   const [weather, setWeather] = useState(null);
@@ -26,26 +25,24 @@ export default function App() {
   const [lights, setLights] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [safestRouteIndex, setSafestRouteIndex] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Initialize map
   useEffect(() => {
     if (!loggedIn || !mapRef.current) return;
 
-    // Remove previous map if exists
-    if (map) {
-      map.remove();
-    }
+    if (map) map.remove();
 
     const initMap = L.map(mapRef.current).setView([17.385, 78.4867], 13);
-
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap contributors",
     }).addTo(initMap);
 
     setMap(initMap);
-  }, [loggedIn]); // Re-run on login
+  }, [loggedIn]);
 
-  // Logout logic
+  // Logout
   const handleLogout = () => {
     localStorage.removeItem("token");
     setLoggedIn(false);
@@ -53,6 +50,7 @@ export default function App() {
     setWeather(null);
     setCrimeData([]);
     setLights([]);
+    setHistory([]);
   };
 
   // Geocode
@@ -80,15 +78,14 @@ export default function App() {
       const data = await res.json();
       setWeather({
         temp: Math.round(data.current_weather.temperature),
-        condition:
-          data.current_weather.weathercode === 0 ? "Clear" : "Cloudy",
+        condition: data.current_weather.weathercode === 0 ? "Clear" : "Cloudy",
       });
     } catch (e) {
       console.error("Weather error:", e);
     }
   };
 
-  // Calculate safety score
+  // Calculate route safety
   const calculateRouteSafety = async (coordinates) => {
     let totalSafetyScore = 0;
     const samplingPoints = 5;
@@ -109,10 +106,10 @@ export default function App() {
       `;
 
       try {
-        const res = await fetch(
-          "https://overpass-api.de/api/interpreter",
-          { method: "POST", body: query }
-        );
+        const res = await fetch("https://overpass-api.de/api/interpreter", {
+          method: "POST",
+          body: query,
+        });
         const data = await res.json();
         totalSafetyScore += data.elements.length;
       } catch (e) {
@@ -137,10 +134,10 @@ export default function App() {
       out center;
     `;
     try {
-      const res = await fetch(
-        "https://overpass-api.de/api/interpreter",
-        { method: "POST", body: query }
-      );
+      const res = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: query,
+      });
       const data = await res.json();
       if (!data.elements || data.elements.length === 0) {
         setCrimeData([]);
@@ -149,7 +146,6 @@ export default function App() {
 
       const points = data.elements.map((el) => {
         const name = el.tags?.name || "Unknown Location";
-
         const R = 6371e3;
         const φ1 = lat * (Math.PI / 180);
         const φ2 = el.lat * (Math.PI / 180);
@@ -160,11 +156,7 @@ export default function App() {
           Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
         const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-        return {
-          type: el.tags.amenity.replace("_", " "),
-          name,
-          distance: d,
-        };
+        return { type: el.tags.amenity.replace("_", " "), name, distance: d };
       });
 
       points.sort((a, b) => a.distance - b.distance);
@@ -183,15 +175,12 @@ export default function App() {
       out;
     `;
     try {
-      const res = await fetch(
-        "https://overpass-api.de/api/interpreter",
-        { method: "POST", body: query }
-      );
+      const res = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        body: query,
+      });
       const data = await res.json();
-      const lights = data.elements.map((el) => ({
-        lat: el.lat,
-        lon: el.lon,
-      }));
+      const lights = data.elements.map((el) => ({ lat: el.lat, lon: el.lon }));
       setLights(lights);
 
       lights.forEach((lamp) => {
@@ -213,82 +202,82 @@ export default function App() {
   const generateAlternativeRoutes = async (src, dest) => {
     const routes = [];
 
-    // Direct route
     const directRoute = await fetch(
       `https://router.project-osrm.org/route/v1/driving/${src.lon},${src.lat};${dest.lon},${dest.lat}?overview=full&geometries=geojson`
     );
     const directData = await directRoute.json();
-    if (directData.code === "Ok" && directData.routes.length > 0) {
+    if (directData.code === "Ok" && directData.routes.length > 0)
       routes.push(directData.routes[0]);
-    }
 
     const latDiff = dest.lat - src.lat;
     const lonDiff = dest.lon - src.lon;
 
-    const waypoint1 = {
-      lat: src.lat + latDiff * 0.5 + lonDiff * 0.1,
-      lon: src.lon + lonDiff * 0.5 - latDiff * 0.1,
-    };
-    const waypoint2 = {
-      lat: src.lat + latDiff * 0.5 - lonDiff * 0.1,
-      lon: src.lon + lonDiff * 0.5 + latDiff * 0.1,
-    };
+    const waypoint1 = { lat: src.lat + latDiff * 0.5 + lonDiff * 0.1, lon: src.lon + lonDiff * 0.5 - latDiff * 0.1 };
+    const waypoint2 = { lat: src.lat + latDiff * 0.5 - lonDiff * 0.1, lon: src.lon + lonDiff * 0.5 + latDiff * 0.1 };
 
-    // Route 2
     try {
       const route2 = await fetch(
         `https://router.project-osrm.org/route/v1/driving/${src.lon},${src.lat};${waypoint1.lon},${waypoint1.lat};${dest.lon},${dest.lat}?overview=full&geometries=geojson`
       );
       const route2Data = await route2.json();
-      if (route2Data.code === "Ok" && route2Data.routes.length > 0)
-        routes.push(route2Data.routes[0]);
+      if (route2Data.code === "Ok" && route2Data.routes.length > 0) routes.push(route2Data.routes[0]);
     } catch (e) {
       console.error("Route 2 error:", e);
     }
 
-    // Route 3
     try {
       const route3 = await fetch(
         `https://router.project-osrm.org/route/v1/driving/${src.lon},${src.lat};${waypoint2.lon},${waypoint2.lat};${dest.lon},${dest.lat}?overview=full&geometries=geojson`
       );
       const route3Data = await route3.json();
-      if (route3Data.code === "Ok" && route3Data.routes.length > 0)
-        routes.push(route3Data.routes[0]);
+      if (route3Data.code === "Ok" && route3Data.routes.length > 0) routes.push(route3Data.routes[0]);
     } catch (e) {
       console.error("Route 3 error:", e);
     }
 
     return routes;
   };
-  const saveHistory = async (src, dest) => {
-  const token = localStorage.getItem("token");
 
-  if (!token) {
-    console.error("No token found");
-    return;
-  }
+  // Save search history
+  const saveHistory = async (srcName, destName) => {
+    try {
+      const token = localStorage.getItem("token");
+      await fetch("http://localhost:5000/history/add", {  // <-- fixed
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ source: srcName, destination: destName }),
+      });
+    } catch (err) {
+      console.error("Save history error:", err);
+    }
+  };
 
-  try {
-    const res = await fetch("http://localhost:5000/history/add", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + token
-      },
-      body: JSON.stringify({
-        source: src,
-        destination: dest
-      })
-    });
+  // Fetch history
+  const fetchHistory = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("User not logged in");
 
-    const data = await res.json();
-    console.log("History save result:", data);
+      const res = await fetch("http://localhost:5000/history/list", {  // <-- fixed
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
 
-  } catch (err) {
-    console.error("History save error:", err);
-  }
-};
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Server responded with ${res.status}: ${text}`);
+      }
 
+      const data = await res.json();
+      setHistory(data);
+      setShowHistory(true);
+    } catch (err) {
+      console.error("Fetch history error:", err);
+      alert("Failed to fetch history. Make sure you are logged in.");
+    }
+  };
 
   // Handle navigation
   const handleNavigate = async () => {
@@ -298,11 +287,7 @@ export default function App() {
       const src = await geocode(source);
       const dest = await geocode(destination);
 
-      // Clear map except tile layer
-      map.eachLayer((layer) => {
-        if (layer instanceof L.TileLayer) return;
-        map.removeLayer(layer);
-      });
+      map.eachLayer((layer) => { if (!(layer instanceof L.TileLayer)) map.removeLayer(layer); });
 
       const srcMarker = L.marker([src.lat, src.lon]).addTo(map);
       const destMarker = L.marker([dest.lat, dest.lon]).addTo(map);
@@ -313,7 +298,6 @@ export default function App() {
       if (routeData.length === 0) throw new Error("No routes found");
 
       const routesWithSafety = [];
-
       for (let i = 0; i < routeData.length; i++) {
         const coords = routeData[i].geometry.coordinates.map((c) => [c[1], c[0]]);
         const safetyScore = await calculateRouteSafety(coords);
@@ -352,18 +336,14 @@ export default function App() {
       fetchWeather(dest.lat, dest.lon);
       fetchCrimes(dest.lat, dest.lon);
       fetchStreetLights(dest.lat, dest.lon);
-      await saveHistory(source, destination);
-
+      saveHistory(src.displayName, dest.displayName);
     } catch (e) {
       alert("Error finding routes: " + e.message);
       console.error(e);
     }
   };
 
-  // Render
-  if (!loggedIn) {
-    return <Login onLogin={() => setLoggedIn(true)} />;
-  }
+  if (!loggedIn) return <Login onLogin={() => setLoggedIn(true)} />;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
@@ -405,17 +385,54 @@ export default function App() {
           />
         </div>
 
-        <button
-          onClick={handleNavigate}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition"
-        >
-          <Activity size={18} /> Find Routes
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleNavigate}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition"
+          >
+            <Activity size={18} /> Find Routes
+          </button>
+
+          <button
+            onClick={fetchHistory}
+            className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded text-sm"
+          >
+            Browse History
+          </button>
+        </div>
       </div>
+
+      {showHistory && (
+        <div className="bg-gray-700 p-4 mx-4 rounded-lg max-h-64 overflow-y-auto">
+          <h2 className="text-lg font-semibold mb-2">Previous Searches</h2>
+          {history.length === 0 ? (
+            <p>No history found</p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {history.map((h, idx) => (
+                <li
+                  key={idx}
+                  className="cursor-pointer hover:bg-gray-600 p-1 rounded"
+                  onClick={() => {
+                    setSource(h.source);
+                    setDestination(h.destination);
+                    setShowHistory(false);
+                  }}
+                >
+                  {h.source} → {h.destination}{" "}
+                  <span className="text-xs ml-2 opacity-70">
+                    ({new Date(h.createdAt).toLocaleString()})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div
         ref={mapRef}
-        key={loggedIn} // important to re-render div
+        key={loggedIn}
         id="map"
         className="flex-1 w-full"
         style={{ minHeight: "450px" }}
@@ -452,37 +469,38 @@ export default function App() {
 
         {weather && (
           <div className="flex flex-col bg-gray-700 p-4 rounded-lg">
-            <h2 className="flex items-center gap-2 text-lg font-semibold mb-2">
+            <h2 className="flex items-center gap-2 text-lg font-semibold mb-3">
               <Cloud /> Weather
             </h2>
-            <p>🌤 {weather.condition}</p>
-            <p>🌡 {weather.temp}°C</p>
+            <p className="text-base">
+              {weather.temp}°C - {weather.condition}
+            </p>
           </div>
         )}
 
-        <div className="flex flex-col bg-gray-700 p-4 rounded-lg">
-          <h2 className="flex items-center gap-2 text-lg font-semibold mb-2">
-            <AlertTriangle /> Safety Points
-          </h2>
-          {crimeData.length > 0 ? (
-            <ul className="space-y-1 text-sm">
-              {crimeData.map((p, idx) => (
+        {crimeData.length > 0 && (
+          <div className="flex flex-col bg-gray-700 p-4 rounded-lg">
+            <h2 className="flex items-center gap-2 text-lg font-semibold mb-3">
+              <AlertTriangle /> Nearby Safety Points
+            </h2>
+            <ul className="text-sm">
+              {crimeData.map((c, idx) => (
                 <li key={idx}>
-                  {p.name} ({p.type}) — {(p.distance / 1000).toFixed(2)} km
+                  {c.type}: {c.name} ({(c.distance / 1000).toFixed(2)} km)
                 </li>
               ))}
             </ul>
-          ) : (
-            <p>✅ No concerns nearby</p>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="flex flex-col bg-gray-700 p-4 rounded-lg">
-          <h2 className="flex items-center gap-2 text-lg font-semibold mb-2">
-            <Lightbulb /> Street Lighting
-          </h2>
-          <p>{lights.length > 0 ? `💡 ${lights.length} lights found` : "No data available"}</p>
-        </div>
+        {lights.length > 0 && (
+          <div className="flex flex-col bg-gray-700 p-4 rounded-lg">
+            <h2 className="flex items-center gap-2 text-lg font-semibold mb-3">
+              <Lightbulb /> Street Lights
+            </h2>
+            <p>{lights.length} lights nearby</p>
+          </div>
+        )}
       </div>
     </div>
   );
